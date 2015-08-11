@@ -7,7 +7,8 @@ Authors: Gunnar Engelbach <Gunnar.Engelbach@ThreatGuard.com>
 
 
 TODO:
-- Check for OVAL IDs in elements that are not repository IDs and update them
+- Check for OVAL IDs in elements that are not repository IDs and update them.  Maybe.  That's not
+  for general use.
 """
 
 
