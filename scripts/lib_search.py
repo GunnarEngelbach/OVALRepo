@@ -107,6 +107,8 @@ class SearchIndex:
                 for value in values:
                     if isinstance(self.schema_dictionary[field], whoosh.fields.DATETIME):
                         field_values.append(query_parser.parse('{0}:{1}'.format(field, value)))
+                    elif isinstance(self.schema_dictionary[field], whoosh.fields.NUMERIC):
+                        field_values.append(query_parser.parse('{0}:{1}'.format(field, value)))
                     else:
                         value = self.whoosh_escape(value, field)
                         field_values.append(whoosh.query.Term(field, value))
@@ -166,6 +168,12 @@ class SearchIndex:
     def paged_query(self, query_dict={}, page=1, page_length=50):
         """ Perform a query and return a page of results """
         return self.query(query_dict, { 'page': page, 'page_length': page_length, 'sorted': True })
+
+    def get_definition_ids(self, query={}):
+        """ Gets set of OVAL ids for results of query. """        
+        query_results = self.query(query)
+        definition_ids = { document['oval_id'] for document in query_results }
+        return definition_ids
 
     def update(self, force_rebuild=False):
         """ Adds/updates all items in repo to index. Note: querying will call this automatically."""
@@ -395,7 +403,7 @@ class DefinitionsIndex(SearchIndex):
         self.schema_dictionary = { 
             'oval_id': whoosh.fields.ID(stored=True, unique=True),
             'oval_version': whoosh.fields.STORED(),
-            'min_schema_version': whoosh.fields.NUMERIC(numtype=int, bits=32, signed=False, stored=True),
+            'min_schema_version': whoosh.fields.NUMERIC(stored=True),
             'title': whoosh.fields.TEXT(stored=True, analyzer=whoosh.analysis.StandardAnalyzer()),
             'description': whoosh.fields.TEXT(stored=True, analyzer=whoosh.analysis.StandardAnalyzer()),
             'class': whoosh.fields.ID(stored=True),
@@ -404,6 +412,7 @@ class DefinitionsIndex(SearchIndex):
             'platforms': whoosh.fields.KEYWORD(commas=True, scorable=True, stored=True),
             'products': whoosh.fields.KEYWORD(commas=True, scorable=True, stored=True),
             'reference_ids': whoosh.fields.KEYWORD(commas=True, scorable=True, stored=True),
+            'last_modified': whoosh.fields.DATETIME(stored=True),
             'path': whoosh.fields.ID(stored=True)
         }
         self.text_fields = [ 'title', 'description' ]
@@ -584,10 +593,14 @@ class RevisionsIndex(SearchIndex):
         }
         self.text_fields = [ 'description' ]
 
+    def format_daterange(self, start_date=False, end_date=False):
+        """ Formats a date range query parameter. """
+        date_range = "{0} TO {1}".format(start_date or '', end_date or '').strip()
+        return '[{0}]'.format(date_range)
+
     def get_defs_revised_in_daterange(self, start_date=False, end_date=False):
         """ Gets set of OVAL ids for definitions revised on or after start_date and/or on or before end_date. """
-        date_range = "{0} TO {1}".format(start_date or '', end_date or '').strip()
-        query = { "date": '[{0}]'.format(date_range) }
+        query = { "date": self.format_daterange(start_date, end_date) }
         
         query_results = self.query(query)
         definition_ids = { document['oval_id'] for document in query_results }
